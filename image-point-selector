@@ -1,0 +1,144 @@
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QPushButton, QFileDialog, QWidget, QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtCore import Qt
+from PIL import Image
+import math
+
+class ImageApp(QMainWindow):  # Создаем класс приложения, наследуем от QMainWindow
+    def __init__(self):
+        super().__init__()  # Инициализация родительского класса
+
+        # Устанавливаем заголовок и размер окна
+        self.setWindowTitle("Image point selector (with zoom)")
+        self.setGeometry(100, 100, 800, 600)
+
+        # Создаем QLabel для отображения изображения
+        self.image_label = QLabel(self)
+        self.image_label.setScaledContents(True)  # Масштабируем содержимое изображения, если изменится размер QLabel
+
+        # Создаем кнопку для открытия изображения
+        self.open_button = QPushButton("Open image", self)
+        self.open_button.clicked.connect(self.open_image)  # Связываем клик по кнопке с функцией открытия изображения
+
+        # Создаем таблицу для вывода координат точек
+        self.coordinates_table = QTableWidget(self)
+        self.coordinates_table.setColumnCount(3)  # Устанавливаем 3 колонки для таблицы: Point, X, Y
+        self.coordinates_table.setHorizontalHeaderLabels(["Point", "X", "Y"])  # Устанавливаем заголовки колонок
+
+        # Настраиваем поведение заголовков таблицы: колонки будут растягиваться
+        header = self.coordinates_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
+        self.points = []  # Список для хранения точек (номер, x, y)
+        self.zoom_factor = 1.0  # Изначальный коэффициент увеличения изображения
+
+        # Создаем кнопку для выхода
+        self.exit_button = QPushButton("Exit", self)
+        self.exit_button.clicked.connect(self.close_application)  # Связываем кнопку с функцией закрытия приложения
+
+        layout = QVBoxLayout()  # Создаем вертикальный layout
+
+        # Добавляем таблицу, кнопку для открытия изображения, кнопку выхода и QLabel (с изображением) в layout
+        layout.addWidget(self.coordinates_table)
+        layout.addWidget(self.open_button)
+        layout.addWidget(self.image_label)
+        layout.addWidget(self.exit_button)  # Добавляем кнопку Exit в layout
+
+        container = QWidget()  # Создаем контейнер для центрального виджета
+        container.setLayout(layout)  # Присваиваем layout контейнеру
+        self.setCentralWidget(container)  # Устанавливаем контейнер как центральный виджет окна
+
+        self.image = None  # Переменная для хранения изображения (PIL.Image)
+        self.image_path = None  # Переменная для хранения пути к изображению
+
+        # Обработка события клика мыши по QLabel
+        self.image_label.mousePressEvent = self.get_click_coordinates
+
+    def open_image(self):
+        """Открыть изображение и отобразить его."""
+        # Диалог открытия файла для выбора изображения
+        self.image_path, _ = QFileDialog.getOpenFileName(self, "Open Image", "", "Image Files (*.png *.jpg *.bmp)")
+        if self.image_path:  # Если путь к файлу выбран
+            self.image = Image.open(self.image_path)  # Открываем изображение через PIL
+            self.show_image()  # Отображаем изображение в QLabel
+
+    def show_image(self):
+        """Отобразить изображение в QLabel."""
+        if self.image:  # Если изображение загружено
+            qimage = QImage(self.image_path)  # Загружаем изображение в формате QImage
+            pixmap = QPixmap.fromImage(qimage)  # Преобразуем QImage в QPixmap для отображения
+            self.image_label.setPixmap(pixmap)  # Устанавливаем изображение в QLabel
+            self.adjust_window_size()  # Настраиваем размер окна в зависимости от изображения
+
+    def get_click_coordinates(self, event):
+        """Захват координат при клике по изображению."""
+        if self.image:  # Если изображение загружено
+            # Преобразуем координаты клика в координаты изображения с учетом зума
+            x = event.pos().x() / self.zoom_factor
+            y = event.pos().y() / self.zoom_factor
+
+            x_scaled = round(x, 1)  # Округляем координаты до одного знака после запятой
+            y_scaled = round(y, 1)
+
+            point_number = len(self.points) + 1  # Номер точки
+            self.points.append((point_number, x_scaled, y_scaled))  # Добавляем точку в список
+
+            print(f"Point {point_number}: ({x_scaled}, {y_scaled})")  # Печатаем координаты точки
+            self.update_table()  # Обновляем таблицу координат
+
+            self.update()  # Обновляем виджет для перерисовки
+
+    def update_table(self):
+        """Обновление таблицы с координатами."""
+        self.coordinates_table.setRowCount(len(self.points))  # Устанавливаем количество строк таблицы по числу точек
+        for i, point in enumerate(self.points):  # Проходим по каждой точке
+            # Заполняем ячейки таблицы значениями точки (номер, x, y)
+            point_num_item = QTableWidgetItem(str(point[0]))
+            x_item = QTableWidgetItem(str(point[1]))
+            y_item = QTableWidgetItem(str(point[2]))
+
+            self.coordinates_table.setItem(i, 0, point_num_item)
+            self.coordinates_table.setItem(i, 1, x_item)
+            self.coordinates_table.setItem(i, 2, y_item)
+
+    def wheelEvent(self, event):
+        """Обработка зума при прокрутке колеса мыши."""
+        if event.angleDelta().y() > 0:  # Если колесо мыши прокручивается вверх
+            self.zoom_factor *= 1.1  # Увеличиваем коэффициент зума
+        else:
+            self.zoom_factor /= 1.1  # Уменьшаем коэффициент зума
+
+        self.show_image_zoomed()  # Обновляем изображение с новым масштабом
+
+    def show_image_zoomed(self):
+        """Применение зума к изображению."""
+        if self.image:  # Если изображение загружено
+            # Вычисляем новые размеры изображения с учетом коэффициента зума
+            width = math.ceil(self.image.width * self.zoom_factor)
+            height = math.ceil(self.image.height * self.zoom_factor)
+            resized_image = self.image.resize((width, height))  # Масштабируем изображение через PIL
+
+            # Конвертируем изображение из PIL в QPixmap
+            resized_image_qt = resized_image.convert("RGBA")
+            data = resized_image_qt.tobytes("raw", "RGBA")
+            qimage = QImage(data, resized_image_qt.size[0], resized_image_qt.size[1], QImage.Format_RGBA8888)
+            pixmap = QPixmap.fromImage(qimage)
+
+            self.image_label.setPixmap(pixmap)  # Отображаем масштабированное изображение
+            self.adjust_window_size()  # Подгоняем размер окна
+
+    def adjust_window_size(self):
+        """Подгонка размера окна под размеры изображения."""
+        self.image_label.adjustSize()  # Устанавливаем размер QLabel по размеру изображения
+        self.resize(self.image_label.width(), self.image_label.height())  # Меняем размер окна под изображение
+
+    def close_application(self):
+        """Функция для завершения работы приложения."""
+        self.close()  # Закрываем окно приложения
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)  # Создаем экземпляр приложения
+    window = ImageApp()  # Создаем экземпляр окна приложения
+    window.show()  # Показываем окно
+    sys.exit(app.exec_())  # Запускаем цикл обработки событий
