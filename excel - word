@@ -1,0 +1,188 @@
+import os  # Импортируем библиотеку для работы с файловой системой
+import pandas as pd  # Импортируем библиотеку для работы с таблицами
+import random  # Импортируем библиотеку для генерации случайных чисел
+from docx import Document  # Импортируем библиотеку для работы с документами Word
+
+
+# Названия файлов Excel с исходными данными
+src_table = "C:/Users/redha/New EXP/task_2/Все вместе 3000 2023 г  трудоемк Князь.xlsx"
+avto_table = "C:/Users/redha/New EXP/task_2/2023 все вместе Автомат Князь.xlsx"
+y = 23  # Переменная, обозначающая текущий год (используется в именовании файлов)
+
+# Чтение данных из Excel файлов
+data = pd.read_excel(src_table)  # Загружаем таблицу с основными данными
+avto_data = pd.read_excel(avto_table)  # Загружаем таблицу с данными по автоматам
+
+# Удаляем дубликаты по ФИО и оставляем только столбцы ФИО и Должность
+people_work = data.drop_duplicates(subset=["ФИО"])[["ФИО", "Должность"]]
+
+# Словарь для замены имен наших сотрудников
+our_guys = {"Князь Владимир Владимирович": "Князя Владимира Владимировича"}
+
+# Уникальные должности из данных
+work_types = data.drop_duplicates(subset=["Должность"])["Должность"][1:]
+
+# Словарь проектов с описанием их задач
+all_projects = {
+    "Работа 1": [
+        "- Разработка алгоритмов и ПО",
+        "- Разработка интерфейса",
+        "- Подготовка материалов НТО",
+    ],
+    "other": [
+        "- Разработка алгоритмов и ПО",
+        "- Разработка интерфейса",
+        "- Подготовка материалов НТО",
+    ],
+}
+
+# Словарь для замены должностей в текстах
+all_works = {
+    "Заместитель начальника подразделения по производственным и общим вопросам": "Заместителя начальника подразделения по производственным и общим вопросам",
+    "Начальник лаборатории": "Начальника лаборатории"
+    # (много других должностей)
+}
+
+n_rows = data.shape[0]  # Количество строк в основной таблице данных
+filtered_data = avto_data[
+    (avto_data["ФИО"] == "Авдонин Б.Н.") & (avto_data["Месяц"] == "сентябрь")
+]  # Фильтруем данные по ФИО и месяцу
+
+# Если директория "result" не существует, создаем ее
+if not os.path.exists("result"):
+    os.mkdir("result")
+
+# Столбцы, которые нужно удалить из данных
+columns_to_remove = ["Таб. номер", "ФИО", "Должность", "мес.1", "мес"]
+
+# Цикл по каждому сотруднику (кроме первого, так как 1 индекс - это заголовок)
+for wrkr in range(1, len(people_work)):
+    foo = people_work.iloc[wrkr]["ФИО"]  # Получаем текущее ФИО
+    worker_dir_path = f"result/{foo}"  # Путь к папке для каждого сотрудника
+
+    # Если папка не существует, создаем ее
+    if not os.path.exists(worker_dir_path):
+        os.mkdir(worker_dir_path)
+
+    fio = people_work.iloc[wrkr]["ФИО"]  # Текущее ФИО
+    fio_s = fio.split()  # Разделяем ФИО на составляющие
+    fio_s = "".join(
+        [f"{fio_s[0]} ", f"{fio_s[1][:1]}.", f"{fio_s[2][:1]}."]
+    )  # Сокращенное ФИО
+    work = people_work.iloc[wrkr]["Должность"]  # Получаем должность
+
+    # Цикл по всем файлам в папке "kvartals_exmpls"
+    for doc in os.listdir("C:/Users/redha/New EXP/task_2/kvartals_exmpls"):
+        doc_path = os.path.join(
+            "C:/Users/redha/New EXP/task_2/kvartals_exmpls", doc
+        )  # Путь к файлу документа
+
+        document = Document(doc_path)  # Открываем документ Word
+        doc_table = document.tables[0]  # Берем первую таблицу в документе
+        emptys = 0  # Счетчик пустых строк
+
+        # Цикл по строкам таблицы (первые три строки)
+        for row in range(3):
+            month = (
+                doc_table.cell(1 + row, 0).text.split()[0].lower()
+            )  # Получаем месяц из первой колонки таблицы
+            filtered_row = data[
+                (data["ФИО"] == people_work.iloc[wrkr]["ФИО"]) & (data["мес"] == month)
+            ]  # Фильтруем данные по ФИО и месяцу
+
+            this_fio = people_work.iloc[wrkr]["ФИО"].split()  # Снова обрабатываем ФИО
+            this_fio = "".join(
+                [f"{this_fio[0]} ", f"{this_fio[1][:1]}.", f"{this_fio[2][:1]}."]
+            )
+
+            filtered_data = avto_data[
+                (avto_data["ФИО"] == this_fio) & (avto_data["Месяц"] == month)
+            ]  # Фильтруем автоматные данные
+
+            if not filtered_row.empty:  # Если данные есть
+                this_row = filtered_row.iloc[0]  # Берем первую строку данных
+                this_row = this_row.dropna()  # Удаляем пропуски
+                this_row = this_row[
+                    (this_row != 0) & (this_row != 0.0)
+                ]  # Удаляем нулевые значения
+                this_row = this_row.drop(
+                    labels=columns_to_remove, errors="ignore"
+                )  # Удаляем ненужные столбцы
+
+                print(month)  # Вывод месяца в консоль
+
+                text = ""  # Переменная для итогового текста
+                for idx in range(len(this_row.index)):  # Цикл по каждой работе
+                    work_text = []  # Список для описания работы
+                    
+                    #ДОБАВИЛА переменную для часов
+                    work_name = this_row.index[idx]
+                    hours_spent = this_row[work_name]
+                    txt = f'(трудоёмкость {hours_spent} часов)'
+                    
+                    if not filtered_data.empty:
+                        work_text.append(
+                            "- " + filtered_data["Работа"].iloc[0] + "\n"
+                        )  # Добавляем строку работы из данных + str(hours_spent)
+                    
+                    #ДОБАВИЛА вывод часов в консоли
+                    print(this_row.index[idx] + txt)  # Вывод индекса работы
+
+                    if this_row.index[idx] in all_projects:
+                        proj = all_projects[
+                            this_row.index[idx]
+                        ]  # Получаем проект по индексу
+                    else:
+                        proj = all_projects[
+                            "other"
+                        ]  # Если индекс не найден, берем проект по умолчанию
+
+                   
+                    print(proj)  # Вывод проекта
+                    print("work_text_1", work_text)  # Вывод промежуточного списка работ
+
+                    rand = random.randint(1, 2)  # Генерируем случайное количество задач для выполнения
+                    for r in random.sample(proj, rand):  # Выбираем случайные задачи
+                        work_text.append(f"{r}\n")
+
+                    work_text = list(set(work_text))  # Удаляем дубликаты
+                    ftext = ""  # Переменная для итогового текста задачи
+                    for w in work_text:
+                        ftext += w  # Формируем текст
+
+                    #ДОБАВИЛА вывод часов для текста в Word
+                    text += f"{this_row.index[idx]} {txt}:\n{ftext}"  # Добавляем текст задачи к тексту месяца
+                    print("work_text_2", work_text)  # Вывод финального списка задач
+
+                doc_table.cell(1 + row, 1).text = (
+                    text  # Записываем текст в ячейку таблицы
+                )
+                print()  # Пустая строка для разделения вывода
+            else:
+                emptys += 1  # Если строка пуста, увеличиваем счетчик пустых строк
+
+        # Если не все строки пусты, обновляем текст документа
+        if emptys != 3:
+            # Заменяем в документе должность и ФИО
+            document.paragraphs[0].text = document.paragraphs[0].text.replace(
+                "начальника лаборатории", all_works[work].lower()
+            )
+            if fio in our_guys:
+                document.paragraphs[1].text = document.paragraphs[1].text.replace(
+                    "Горбачева Вадима Александровича", our_guys[fio]
+                )
+            else:
+                document.paragraphs[1].text = document.paragraphs[1].text.replace(
+                    "Горбачева Вадима Александровича", fio
+                )
+            document.paragraphs[5].text = document.paragraphs[5].text.replace(
+                "Начальник лаборатории", work
+            )
+            document.paragraphs[5].text = document.paragraphs[5].text.replace(
+                "Горбачев Вадим Александрович", fio
+            )
+
+            # Сохраняем документ в новую папку для каждого сотрудника
+            document.save(
+                f'{worker_dir_path}/{fio.replace(" ", "_")}_({doc[1:2]}кв{y}).docx'
+            )
